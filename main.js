@@ -1,50 +1,101 @@
 import Rx from 'rx';
-import { drawPaddle } from './graphics';
+import { drawBall, drawPaddle, paddleWidth, paddleHeight, ballRadius } from './graphics';
 
 const canvas = document.getElementById('stage');
-const ctx = canvas.getContext('2d');
+const context = canvas.getContext('2d');
 
-const allKeyDown$ = Rx.Observable.fromEvent(document, 'keydown');
-const allKeyUp$ = Rx.Observable.fromEvent(document, 'keyup');
+/* Ticker */
 
-function filterKeyCode(keyCode) {
-    return event => event.which === keyCode;
-}
+const ticker$ = Rx.Observable
+    .interval(1000 / 60, Rx.Scheduler.requestAnimationFrame)
+    .map(
+        () => ({ time: Date.now() })
+    ).scan(
+        (acc, val) => ({
+            time: val.time,
+            deltaTime: (val.time - acc.time) / 1000
+        }), {
+            time: Date.now(),
+            deltaTime: 0
+        }
+    );
 
-function keyDown$(keyCode) {
-    return allKeyDown$.filter(filterKeyCode(keyCode));
-}
+/* Paddle */
 
-function keyUp$(keyCode) {
-    return allKeyUp$.filter(filterKeyCode(keyCode));
-}
+const paddleKeys = {
+    left: 37,
+    right: 39
+};
 
-function keyState(keyCode, value) {
-    return Rx.Observable.merge(
-        keyDown$(keyCode).map(value),
-        keyUp$(keyCode).map(0)
-    ).distinctUntilChanged();
-}
+const paddleSpeed = 250;
 
-var ticker$ = Rx.Observable.interval(10);
-
-var direction$ = Rx.Observable.combineLatest(
-    keyState(37, -1).startWith(0),
-    keyState(39, 1).startWith(0),
-    (a, b) => a + b
-);
-
-function move(position, direction) {
-    return Math.max(Math.min(position + direction * 2, canvas.width - 70), 70);
-}
-
-function render(position) {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    drawPaddle(ctx, canvas, position);
-}
-
-ticker$
-    .combineLatest(direction$, (a, b) => b)
-    .scan(move, canvas.width / 2)
+const paddleDirection$ =
+    Rx.Observable.merge(
+        Rx.Observable.fromEvent(document, 'keydown'),
+        Rx.Observable.fromEvent(document, 'keyup')
+    )
+    .filter(e => e.keyCode === paddleKeys.left || e.keyCode === paddleKeys.right)
+    .map(e => {
+        if (e.type === 'keyup') return 0;
+        if (e.keyCode === paddleKeys.left) return -1;
+        if (e.keyCode === paddleKeys.right) return 1;
+    })
     .distinctUntilChanged()
-    .subscribe(render);
+    .startWith(0);
+
+const paddlePosition$ =
+    ticker$
+    .withLatestFrom(paddleDirection$)
+    .scan((prev, [{time, deltaTime}, direction]) => {
+        let next = prev + direction * deltaTime * paddleSpeed;
+        return Math.max(Math.min(next, canvas.width - paddleWidth / 2), paddleWidth / 2);
+    }, canvas.width / 2)
+    .distinctUntilChanged();
+
+/* Ball */
+
+const ballState$ =
+    ticker$
+    .withLatestFrom(paddlePosition$)
+    .scan(
+        ({pos, dir}, [{time, deltaTime}, paddlePos]) => {
+            let nextDir = collideWithWalls(pos, dir, paddlePos);
+            let nextPos = {
+                x: pos.x + nextDir.x,
+                y: pos.y + nextDir.y
+            };
+            return {
+                pos: nextPos,
+                dir: nextDir
+            }
+        }, {
+            pos: {
+                x: canvas.width / 2,
+                y: canvas.height / 2
+            },
+            dir: {
+                x: 2,
+                y: 2
+            }
+        }
+    );
+
+function collideWithWalls(pos, dir, paddlePos) {
+    let xHit = pos.x + dir.x > paddlePos - paddleWidth / 2 && pos.x + dir.x < paddlePos + paddleWidth / 2;
+    let yHit = pos.y + dir.y > canvas.height - paddleHeight - ballRadius / 2;
+    if (pos.x < 10 || pos.x > canvas.width - 10) {
+        dir.x = -dir.x;
+    }
+    if ((xHit && yHit) || pos.y < 10 || pos.y > canvas.height - 10) {
+        dir.y = -dir.y;
+    }
+    return dir;
+}
+
+/* Game */
+
+Rx.Observable.combineLatest(paddlePosition$, ballState$).subscribe(([paddlePos, {pos}]) => {
+    context.clearRect(0, 0, canvas.width, canvas.height);
+    drawPaddle(context, paddlePos);
+    drawBall(context, pos);
+});
