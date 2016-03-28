@@ -46,7 +46,7 @@ const paddleDirection$ =
 const paddlePosition$ =
     ticker$
     .withLatestFrom(paddleDirection$)
-    .scan((prev, [{time, deltaTime}, direction]) => {
+    .scan((prev, [{deltaTime}, direction]) => {
         let next = prev + direction * deltaTime * paddleSpeed;
         return Math.max(Math.min(next, canvas.width - paddleWidth / 2), paddleWidth / 2);
     }, canvas.width / 2)
@@ -79,6 +79,8 @@ const ballState$ =
             }
         }
     );
+
+// @TODO
 
 function collideWithWalls(pos, dir, paddlePos) {
     let xHit = pos.x + dir.x > paddlePos - paddleWidth / 2 && pos.x + dir.x < paddlePos + paddleWidth / 2;
