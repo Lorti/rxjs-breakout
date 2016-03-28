@@ -5,6 +5,11 @@ import Rx from 'rx';
 const canvas = document.getElementById('stage');
 const context = canvas.getContext('2d');
 
+context.font = '24px Courier New';
+context.textAlign = 'center';
+context.fillStyle = 'pink';
+context.fillText('LOADING...', canvas.width / 2, canvas.height / 2);
+
 export const paddleWidth = 100;
 export const paddleHeight = 20;
 
@@ -138,6 +143,8 @@ window.addEventListener('load', () => {
         if (!defeat) {
             drawPaddle(context, paddlePos);
             drawBall(context, pos);
+        } else {
+            context.fillText('GAME OVER', canvas.width / 2, canvas.height / 2);
         }
     });
-})
+});
