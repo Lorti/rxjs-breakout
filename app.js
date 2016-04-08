@@ -6,10 +6,21 @@ import Rx from 'rx';
 const canvas = document.getElementById('stage');
 const context = canvas.getContext('2d');
 
-export const PADDLE_WIDTH = 100;
-export const PADDLE_HEIGHT = 20;
+const PADDLE_WIDTH = 100;
+const PADDLE_HEIGHT = 20;
 
-export function drawPaddle(context, position) {
+const BALL_RADIUS = 10;
+
+function drawTitle() {
+    context.textAlign = 'center';
+    context.fillStyle = 'pink';
+    context.font = '24px Courier New';
+    context.fillText('rxjs breakout', canvas.width / 2, canvas.height / 2 - 24);
+    context.font = '16px Courier New';
+    context.fillText('press [<] and [>] to play', canvas.width / 2, canvas.height / 2);
+}
+
+function drawPaddle(context, position) {
     context.beginPath();
     context.rect(
         position - PADDLE_WIDTH / 2,
@@ -22,9 +33,7 @@ export function drawPaddle(context, position) {
     context.closePath();
 }
 
-export const BALL_RADIUS = 10;
-
-export function drawBall(context, position) {
+function drawBall(context, position) {
     context.beginPath();
     context.arc(position.x, position.y, BALL_RADIUS, 0, Math.PI * 2);
     context.fillStyle = 'pink';
@@ -64,14 +73,13 @@ const input$ = Rx.Observable
         Rx.Observable.fromEvent(document, 'keydown'),
         Rx.Observable.fromEvent(document, 'keyup')
     )
-    .filter(e => e.keyCode === PADDLE_KEYS.left || e.keyCode === PADDLE_KEYS.right)
-    .map(e => {
-        if (e.type === 'keyup') return 0;
-        if (e.keyCode === PADDLE_KEYS.left) return -1;
-        if (e.keyCode === PADDLE_KEYS.right) return 1;
-    })
-    .distinctUntilChanged()
-    .startWith(0);
+    .filter(event => event.keyCode === PADDLE_KEYS.left || event.keyCode === PADDLE_KEYS.right)
+    .scan((direction, event) => {
+        if (event.type === 'keyup') return 0;
+        if (event.keyCode === PADDLE_KEYS.left) return -1;
+        if (event.keyCode === PADDLE_KEYS.right) return 1;
+    }, 0)
+    .distinctUntilChanged();
 
 const paddle$ = ticker$
     .withLatestFrom(input$)
@@ -82,12 +90,52 @@ const paddle$ = ticker$
     .distinctUntilChanged();
 
 
+/* Ball */
+
+function hit(paddle, ball) {
+    return ball.position.x + ball.direction.x > paddle - PADDLE_WIDTH / 2
+        && ball.position.x + ball.direction.x < paddle + PADDLE_WIDTH / 2
+        && ball.position.y + ball.direction.y > canvas.height - PADDLE_HEIGHT - BALL_RADIUS / 2;
+}
+
+const ball$ = ticker$
+    .withLatestFrom(paddle$)
+    .scan((ball, [ticker, paddle]) => {
+
+            ball.position.x = ball.position.x + ball.direction.x;
+            ball.position.y = ball.position.y + ball.direction.y;
+
+            if (ball.position.x < BALL_RADIUS || ball.position.x > canvas.width - BALL_RADIUS) {
+                ball.direction.x = -ball.direction.x;
+            }
+
+            if (hit(paddle, ball) || ball.position.y < BALL_RADIUS || ball.position.y > canvas.height - BALL_RADIUS) {
+                ball.direction.y = -ball.direction.y;
+            }
+
+            return ball;
+
+        }, {
+            position: {
+                x: canvas.width / 2,
+                y: canvas.height / 3
+            },
+            direction: {
+                x: 2,
+                y: 2
+            }
+        }
+    );
+
+
 /* Game */
 
+drawTitle();
 Rx.Observable
-    .combineLatest(ticker$, paddle$)
+    .combineLatest(ticker$, paddle$, ball$)
     .sample(TICKER_INTERVAL)
-    .subscribe(([ticker, paddle]) => {
+    .subscribe(([ticker, paddle, ball]) => {
         context.clearRect(0, 0, canvas.width, canvas.height);
         drawPaddle(context, paddle);
+        drawBall(context, ball.position)
     });
