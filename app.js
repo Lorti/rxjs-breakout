@@ -20,6 +20,15 @@ function drawTitle() {
     context.fillText('press [<] and [>] to play', canvas.width / 2, canvas.height / 2);
 }
 
+function drawGameOver() {
+    context.textAlign = 'center';
+    context.fillStyle = 'pink';
+    context.font = '24px Courier New';
+    context.fillText('rxjs breakout', canvas.width / 2, canvas.height / 2 - 24);
+    context.font = '16px Courier New';
+    context.fillText('game over', canvas.width / 2, canvas.height / 2);
+}
+
 function drawPaddle(context, position) {
     context.beginPath();
     context.rect(
@@ -131,11 +140,25 @@ const ball$ = ticker$
 /* Game */
 
 drawTitle();
+
+function over([ticker, paddle, ball]) {
+    return ball.position.y > canvas.height - BALL_RADIUS;
+}
+
+function render([ticker, paddle, ball]) {
+    context.clearRect(0, 0, canvas.width, canvas.height);
+    drawPaddle(context, paddle);
+    drawBall(context, ball.position);
+}
+
 Rx.Observable
     .combineLatest(ticker$, paddle$, ball$)
     .sample(TICKER_INTERVAL)
-    .subscribe(([ticker, paddle, ball]) => {
-        context.clearRect(0, 0, canvas.width, canvas.height);
-        drawPaddle(context, paddle);
-        drawBall(context, ball.position)
-    });
+    .takeWhile((actors) => {
+        return !over(actors);
+    })
+    .subscribe(
+        render,
+        (err) => console.log(`Error ${err}`),
+        drawGameOver
+    );
