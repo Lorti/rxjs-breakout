@@ -16,15 +16,14 @@ function drawTitle() {
     context.fillStyle = 'pink';
     context.font = '24px Courier New';
     context.fillText('rxjs breakout', canvas.width / 2, canvas.height / 2 - 24);
+}
+
+function drawControls() {
     context.font = '16px Courier New';
     context.fillText('press [<] and [>] to play', canvas.width / 2, canvas.height / 2);
 }
 
 function drawGameOver() {
-    context.textAlign = 'center';
-    context.fillStyle = 'pink';
-    context.font = '24px Courier New';
-    context.fillText('rxjs breakout', canvas.width / 2, canvas.height / 2 - 24);
     context.font = '16px Courier New';
     context.fillText('game over', canvas.width / 2, canvas.height / 2);
 }
@@ -71,7 +70,7 @@ const ticker$ = Rx.Observable
 
 /* Paddle */
 
-const PADDLE_SPEED = 250;
+const PADDLE_SPEED = 240;
 const PADDLE_KEYS = {
     left: 37,
     right: 39
@@ -101,6 +100,8 @@ const paddle$ = ticker$
 
 /* Ball */
 
+const BALL_SPEED = 60;
+
 function hit(paddle, ball) {
     return ball.position.x + ball.direction.x > paddle - PADDLE_WIDTH / 2
         && ball.position.x + ball.direction.x < paddle + PADDLE_WIDTH / 2
@@ -111,14 +112,14 @@ const ball$ = ticker$
     .withLatestFrom(paddle$)
     .scan((ball, [ticker, paddle]) => {
 
-            ball.position.x = ball.position.x + ball.direction.x;
-            ball.position.y = ball.position.y + ball.direction.y;
+            ball.position.x = ball.position.x + ball.direction.x * ticker.deltaTime * BALL_SPEED;
+            ball.position.y = ball.position.y + ball.direction.y * ticker.deltaTime * BALL_SPEED;
 
             if (ball.position.x < BALL_RADIUS || ball.position.x > canvas.width - BALL_RADIUS) {
                 ball.direction.x = -ball.direction.x;
             }
 
-            if (hit(paddle, ball) || ball.position.y < BALL_RADIUS || ball.position.y > canvas.height - BALL_RADIUS) {
+            if (hit(paddle, ball) || ball.position.y < BALL_RADIUS ) {
                 ball.direction.y = -ball.direction.y;
             }
 
@@ -127,7 +128,7 @@ const ball$ = ticker$
         }, {
             position: {
                 x: canvas.width / 2,
-                y: canvas.height / 3
+                y: canvas.height / 2
             },
             direction: {
                 x: 2,
@@ -140,12 +141,13 @@ const ball$ = ticker$
 /* Game */
 
 drawTitle();
+drawControls();
 
-function over([ticker, paddle, ball]) {
+function gameOver([ticker, paddle, ball]) {
     return ball.position.y > canvas.height - BALL_RADIUS;
 }
 
-function render([ticker, paddle, ball]) {
+function drawScene([ticker, paddle, ball]) {
     context.clearRect(0, 0, canvas.width, canvas.height);
     drawPaddle(context, paddle);
     drawBall(context, ball.position);
@@ -155,10 +157,13 @@ Rx.Observable
     .combineLatest(ticker$, paddle$, ball$)
     .sample(TICKER_INTERVAL)
     .takeWhile((actors) => {
-        return !over(actors);
+        return !gameOver(actors);
     })
     .subscribe(
-        render,
+        drawScene,
         (err) => console.log(`Error ${err}`),
-        drawGameOver
+        () => {
+            drawTitle();
+            drawGameOver();
+        }
     );
