@@ -25,7 +25,12 @@ function drawControls() {
 
 function drawGameOver() {
     context.font = '16px Courier New';
-    context.fillText('game over', canvas.width / 2, canvas.height / 2);
+    context.fillText('GAME OVER', canvas.width / 2, canvas.height / 2);
+}
+
+function drawAuthor() {
+    context.font = '16px Courier New';
+    context.fillText('by Manuel Wieser', canvas.width / 2, canvas.height / 2 + 24);
 }
 
 function drawPaddle(context, position) {
@@ -142,6 +147,7 @@ const ball$ = ticker$
 
 drawTitle();
 drawControls();
+drawAuthor();
 
 function gameOver([ticker, paddle, ball]) {
     return ball.position.y > canvas.height - BALL_RADIUS;
