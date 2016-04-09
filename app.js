@@ -11,6 +11,11 @@ const PADDLE_HEIGHT = 20;
 
 const BALL_RADIUS = 10;
 
+const BRICK_ROWS = 5;
+const BRICK_COLUMNS = 7;
+const BRICK_HEIGHT = 20;
+const BRICK_GAP = 3;
+
 function drawTitle() {
     context.textAlign = 'center';
     context.fillStyle = 'pink';
@@ -52,6 +57,23 @@ function drawBall(context, position) {
     context.fillStyle = 'pink';
     context.fill();
     context.closePath();
+}
+
+function drawBrick(context, brick) {
+    context.beginPath();
+    context.rect(
+        brick.x - brick.width / 2,
+        brick.y - brick.height / 2,
+        brick.width,
+        brick.height
+    );
+    context.fillStyle = 'pink';
+    context.fill();
+    context.closePath();
+}
+
+function drawBricks(context, bricks) {
+    bricks.forEach((brick) => drawBrick(context, brick));
 }
 
 
@@ -143,6 +165,29 @@ const ball$ = ticker$
     );
 
 
+/* Bricks */
+
+function factory() {
+    let width = (canvas.width - BRICK_GAP - BRICK_GAP * BRICK_COLUMNS) / BRICK_COLUMNS;
+    let bricks = [];
+
+    for (let i = 0; i < BRICK_ROWS; i++) {
+        for (let j = 0; j < BRICK_COLUMNS; j++) {
+            bricks.push({
+                x: j * (width + BRICK_GAP) + width / 2 + BRICK_GAP,
+                y: i * (BRICK_HEIGHT + BRICK_GAP) + BRICK_HEIGHT / 2 + BRICK_GAP,
+                width: width,
+                height: BRICK_HEIGHT,
+                destroyed: false
+            });
+        }
+    }
+
+    return bricks;
+}
+
+const bricks$ = Rx.Observable.from([factory()]);
+
 /* Game */
 
 drawTitle();
@@ -153,14 +198,15 @@ function gameOver([ticker, paddle, ball]) {
     return ball.position.y > canvas.height - BALL_RADIUS;
 }
 
-function drawScene([ticker, paddle, ball]) {
+function drawScene([ticker, paddle, ball, bricks]) {
     context.clearRect(0, 0, canvas.width, canvas.height);
     drawPaddle(context, paddle);
     drawBall(context, ball.position);
+    drawBricks(context, bricks);
 }
 
 Rx.Observable
-    .combineLatest(ticker$, paddle$, ball$)
+    .combineLatest(ticker$, paddle$, ball$, bricks$)
     .sample(TICKER_INTERVAL)
     .takeWhile((actors) => {
         return !gameOver(actors);
