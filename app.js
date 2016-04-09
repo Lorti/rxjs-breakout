@@ -77,6 +77,30 @@ function drawBricks(context, bricks) {
 }
 
 
+/* Sounds */
+const audio = new (window.AudioContext || window.webkitAudioContext)();
+
+// https://en.wikipedia.org/wiki/Piano_key_frequencies
+function frequency(key) {
+    return Math.pow(2, (key - 49) / 12) * 440;
+}
+
+function beep(key, volume) {
+    let oscillator = audio.createOscillator();
+    let gain = audio.createGain();
+
+    oscillator.connect(gain);
+    gain.connect(audio.destination)
+    oscillator.type = 'square';
+
+    gain.gain.value = volume || 1;
+    oscillator.frequency.value = frequency(key);
+
+    oscillator.start();
+    oscillator.stop(audio.currentTime + .100);
+}
+
+
 /* Ticker */
 
 const TICKER_INTERVAL = 17;
@@ -153,7 +177,13 @@ const objects$ = ticker$
     .scan(({ball, bricks}, [ticker, paddle]) => {
 
         let survivors = [];
-        let collided = false;
+        let collisions = {
+            paddle: false,
+            floor: false,
+            wall: false,
+            ceiling: false,
+            brick: false
+        };
 
         ball.position.x = ball.position.x + ball.direction.x * ticker.deltaTime * BALL_SPEED;
         ball.position.y = ball.position.y + ball.direction.y * ticker.deltaTime * BALL_SPEED;
@@ -162,21 +192,27 @@ const objects$ = ticker$
             if (!collision(brick, ball)) {
                 survivors.push(brick);
             } else {
-                collided = true;
+                collisions.brick = true;
             }
         });
 
+        collisions.paddle = hit(paddle, ball);
+
         if (ball.position.x < BALL_RADIUS || ball.position.x > canvas.width - BALL_RADIUS) {
             ball.direction.x = -ball.direction.x;
+            collisions.wall = true;
         }
 
-        if (collided || hit(paddle, ball) || ball.position.y < BALL_RADIUS ) {
+        collisions.ceiling = ball.position.y < BALL_RADIUS;
+
+        if (collisions.brick || collisions.paddle || collisions.ceiling ) {
             ball.direction.y = -ball.direction.y;
         }
 
         return {
             ball: ball,
-            bricks: survivors
+            bricks: survivors,
+            collisions: collisions
         };
 
     }, INITIAL_OBJECTS);
@@ -222,9 +258,14 @@ function gameOver([ticker, paddle, objects]) {
 
 function drawScene([ticker, paddle, objects]) {
     context.clearRect(0, 0, canvas.width, canvas.height);
+
     drawPaddle(context, paddle);
     drawBall(context, objects.ball);
     drawBricks(context, objects.bricks);
+
+    if (objects.collisions.paddle) beep(40);
+    if (objects.collisions.wall || objects.collisions.ceiling) beep(45);
+    if (objects.collisions.brick) beep(47);
 }
 
 Rx.Observable
@@ -237,6 +278,7 @@ Rx.Observable
         drawScene,
         (err) => console.log(`Error ${err}`),
         () => {
+            beep(28);
             drawTitle();
             drawGameOver();
         }
