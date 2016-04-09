@@ -5,6 +5,7 @@ import Rx from 'rx';
 
 const canvas = document.getElementById('stage');
 const context = canvas.getContext('2d');
+context.fillStyle = 'pink';
 
 const PADDLE_WIDTH = 100;
 const PADDLE_HEIGHT = 20;
@@ -18,33 +19,36 @@ const BRICK_GAP = 3;
 
 function drawTitle() {
     context.textAlign = 'center';
-    context.fillStyle = 'pink';
     context.font = '24px Courier New';
     context.fillText('rxjs breakout', canvas.width / 2, canvas.height / 2 - 24);
 }
 
 function drawControls() {
+    context.textAlign = 'center';
     context.font = '16px Courier New';
     context.fillText('press [<] and [>] to play', canvas.width / 2, canvas.height / 2);
 }
 
-function drawGameOver() {
+function drawGameOver(success) {
     context.clearRect(canvas.width / 4, canvas.height / 3, canvas.width / 2, canvas.height / 3);
+    context.textAlign = 'center';
     context.font = '24px Courier New';
-    context.fillText('GAME OVER', canvas.width / 2, canvas.height / 2);
+    context.fillText(success ? 'CONGRATULATIONS' : 'GAME OVER', canvas.width / 2, canvas.height / 2);
 }
 
 function drawAuthor() {
+    context.textAlign = 'center';
     context.font = '16px Courier New';
     context.fillText('by Manuel Wieser', canvas.width / 2, canvas.height / 2 + 24);
 }
 
-function drawScore(context, score) {
+function drawScore(score) {
+    context.textAlign = 'left';
     context.font = '16px Courier New';
-    context.fillText(score, 10, 16);
+    context.fillText(score, BRICK_GAP, 16);
 }
 
-function drawPaddle(context, position) {
+function drawPaddle(position) {
     context.beginPath();
     context.rect(
         position - PADDLE_WIDTH / 2,
@@ -52,20 +56,18 @@ function drawPaddle(context, position) {
         PADDLE_WIDTH,
         PADDLE_HEIGHT
     );
-    context.fillStyle = 'pink';
     context.fill();
     context.closePath();
 }
 
-function drawBall(context, ball) {
+function drawBall(ball) {
     context.beginPath();
     context.arc(ball.position.x, ball.position.y, BALL_RADIUS, 0, Math.PI * 2);
-    context.fillStyle = 'pink';
     context.fill();
     context.closePath();
 }
 
-function drawBrick(context, brick) {
+function drawBrick(brick) {
     context.beginPath();
     context.rect(
         brick.x - brick.width / 2,
@@ -73,13 +75,12 @@ function drawBrick(context, brick) {
         brick.width,
         brick.height
     );
-    context.fillStyle = 'pink';
     context.fill();
     context.closePath();
 }
 
-function drawBricks(context, bricks) {
-    bricks.forEach((brick) => drawBrick(context, brick));
+function drawBricks(bricks) {
+    bricks.forEach((brick) => drawBrick(brick));
 }
 
 
@@ -97,7 +98,7 @@ function beep(key, volume) {
     let gain = audio.createGain();
 
     oscillator.connect(gain);
-    gain.connect(audio.destination)
+    gain.connect(audio.destination);
     oscillator.type = 'square';
 
     gain.gain.value = volume || 1;
@@ -150,8 +151,10 @@ const input$ = Rx.Observable
 const paddle$ = ticker$
     .withLatestFrom(input$)
     .scan((position, [ticker, direction]) => {
+
         let next = position + direction * ticker.deltaTime * PADDLE_SPEED;
         return Math.max(Math.min(next, canvas.width - PADDLE_WIDTH / 2), PADDLE_WIDTH / 2);
+
     }, canvas.width / 2)
     .distinctUntilChanged();
 
@@ -262,17 +265,27 @@ drawTitle();
 drawControls();
 drawAuthor();
 
-function gameOver([ticker, paddle, objects]) {
-    return objects.ball.position.y > canvas.height - BALL_RADIUS || !objects.bricks.length;
+function over([ticker, paddle, objects]) {
+    if (objects.ball.position.y > canvas.height - BALL_RADIUS) {
+        beep(28);
+        drawGameOver(false);
+        return true;
+    }
+    if (!objects.bricks.length) {
+        beep(52);
+        drawGameOver(true);
+        return true;
+    }
+    return false;
 }
 
-function drawScene([ticker, paddle, objects]) {
+function update([ticker, paddle, objects]) {
     context.clearRect(0, 0, canvas.width, canvas.height);
 
-    drawPaddle(context, paddle);
-    drawBall(context, objects.ball);
-    drawBricks(context, objects.bricks);
-    drawScore(context, objects.score);
+    drawPaddle(paddle);
+    drawBall(objects.ball);
+    drawBricks(objects.bricks);
+    drawScore(objects.score);
 
     if (objects.collisions.paddle) beep(40);
     if (objects.collisions.wall || objects.collisions.ceiling) beep(45);
@@ -283,13 +296,6 @@ Rx.Observable
     .combineLatest(ticker$, paddle$, objects$)
     .sample(TICKER_INTERVAL)
     .takeWhile((actors) => {
-        return !gameOver(actors);
+        return !over(actors);
     })
-    .subscribe(
-        drawScene,
-        (err) => console.log(`Error ${err}`),
-        () => {
-            beep(28);
-            drawGameOver();
-        }
-    );
+    .subscribe(update);
