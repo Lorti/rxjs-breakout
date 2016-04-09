@@ -29,11 +29,11 @@ function drawControls() {
     context.fillText('press [<] and [>] to play', canvas.width / 2, canvas.height / 2);
 }
 
-function drawGameOver(success) {
+function drawGameOver(text) {
     context.clearRect(canvas.width / 4, canvas.height / 3, canvas.width / 2, canvas.height / 3);
     context.textAlign = 'center';
     context.font = '24px Courier New';
-    context.fillText(success ? 'CONGRATULATIONS' : 'GAME OVER', canvas.width / 2, canvas.height / 2);
+    context.fillText(text, canvas.width / 2, canvas.height / 2);
 }
 
 function drawAuthor() {
@@ -87,26 +87,20 @@ function drawBricks(bricks) {
 /* Sounds */
 
 const audio = new (window.AudioContext || window.webkitAudioContext)();
+const beeper = new Rx.Subject();
+const beep$ = beeper.sample(100).subscribe((key) => {
 
-// https://en.wikipedia.org/wiki/Piano_key_frequencies
-function frequency(key) {
-    return Math.pow(2, (key - 49) / 12) * 440;
-}
-
-function beep(key, volume) {
     let oscillator = audio.createOscillator();
-    let gain = audio.createGain();
-
-    oscillator.connect(gain);
-    gain.connect(audio.destination);
+    oscillator.connect(audio.destination);
     oscillator.type = 'square';
 
-    gain.gain.value = volume || 1;
-    oscillator.frequency.value = frequency(key);
+    // https://en.wikipedia.org/wiki/Piano_key_frequencies
+    oscillator.frequency.value = Math.pow(2, (key - 49) / 12) * 440;
 
     oscillator.start();
-    oscillator.stop(audio.currentTime + .100);
-}
+    oscillator.stop(audio.currentTime + 0.100);
+
+});
 
 
 /* Ticker */
@@ -267,13 +261,13 @@ drawAuthor();
 
 function over([ticker, paddle, objects]) {
     if (objects.ball.position.y > canvas.height - BALL_RADIUS) {
-        beep(28);
-        drawGameOver(false);
+        beeper.onNext(28);
+        drawGameOver('GAME OVER');
         return true;
     }
     if (!objects.bricks.length) {
-        beep(52);
-        drawGameOver(true);
+        beeper.onNext(52);
+        drawGameOver('CONGRATULATIONS');
         return true;
     }
     return false;
@@ -287,9 +281,9 @@ function update([ticker, paddle, objects]) {
     drawBricks(objects.bricks);
     drawScore(objects.score);
 
-    if (objects.collisions.paddle) beep(40);
-    if (objects.collisions.wall || objects.collisions.ceiling) beep(45);
-    if (objects.collisions.brick) beep(47);
+    if (objects.collisions.paddle) beeper.onNext(40);
+    if (objects.collisions.wall || objects.collisions.ceiling) beeper.onNext(45);
+    if (objects.collisions.brick) beeper.onNext(47 + Math.floor(objects.ball.position.y % 12));
 }
 
 Rx.Observable
