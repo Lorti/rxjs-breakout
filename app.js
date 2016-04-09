@@ -29,13 +29,19 @@ function drawControls() {
 }
 
 function drawGameOver() {
-    context.font = '16px Courier New';
+    context.clearRect(canvas.width / 4, canvas.height / 3, canvas.width / 2, canvas.height / 3);
+    context.font = '24px Courier New';
     context.fillText('GAME OVER', canvas.width / 2, canvas.height / 2);
 }
 
 function drawAuthor() {
     context.font = '16px Courier New';
     context.fillText('by Manuel Wieser', canvas.width / 2, canvas.height / 2 + 24);
+}
+
+function drawScore(context, score) {
+    context.font = '16px Courier New';
+    context.fillText(score, 10, 16);
 }
 
 function drawPaddle(context, position) {
@@ -78,6 +84,7 @@ function drawBricks(context, bricks) {
 
 
 /* Sounds */
+
 const audio = new (window.AudioContext || window.webkitAudioContext)();
 
 // https://en.wikipedia.org/wiki/Piano_key_frequencies
@@ -163,7 +170,8 @@ const INITIAL_OBJECTS = {
             y: 2
         }
     },
-    bricks: factory()
+    bricks: factory(),
+    score: 0
 };
 
 function hit(paddle, ball) {
@@ -174,10 +182,10 @@ function hit(paddle, ball) {
 
 const objects$ = ticker$
     .withLatestFrom(paddle$)
-    .scan(({ball, bricks}, [ticker, paddle]) => {
+    .scan(({ball, bricks, collisions, score}, [ticker, paddle]) => {
 
         let survivors = [];
-        let collisions = {
+        collisions = {
             paddle: false,
             floor: false,
             wall: false,
@@ -193,6 +201,7 @@ const objects$ = ticker$
                 survivors.push(brick);
             } else {
                 collisions.brick = true;
+                score = score + 10;
             }
         });
 
@@ -212,7 +221,8 @@ const objects$ = ticker$
         return {
             ball: ball,
             bricks: survivors,
-            collisions: collisions
+            collisions: collisions,
+            score: score
         };
 
     }, INITIAL_OBJECTS);
@@ -228,7 +238,7 @@ function factory() {
         for (let j = 0; j < BRICK_COLUMNS; j++) {
             bricks.push({
                 x: j * (width + BRICK_GAP) + width / 2 + BRICK_GAP,
-                y: i * (BRICK_HEIGHT + BRICK_GAP) + BRICK_HEIGHT / 2 + BRICK_GAP,
+                y: i * (BRICK_HEIGHT + BRICK_GAP) + BRICK_HEIGHT / 2 + BRICK_GAP + 20,
                 width: width,
                 height: BRICK_HEIGHT
             });
@@ -262,6 +272,7 @@ function drawScene([ticker, paddle, objects]) {
     drawPaddle(context, paddle);
     drawBall(context, objects.ball);
     drawBricks(context, objects.bricks);
+    drawScore(context, objects.score);
 
     if (objects.collisions.paddle) beep(40);
     if (objects.collisions.wall || objects.collisions.ceiling) beep(45);
@@ -279,7 +290,6 @@ Rx.Observable
         (err) => console.log(`Error ${err}`),
         () => {
             beep(28);
-            drawTitle();
             drawGameOver();
         }
     );
