@@ -1,7 +1,7 @@
 {
   "name": "rxjs-breakout",
   "version": "1.0.0",
-  "description": "RxJS Breakout",
+  "description": "RxJS Breakout Implementation",
   "scripts": {
     "start": "budo app.js:index.js --live --open -- -t [ babelify --presets [ es2015 ] ]"
   },
