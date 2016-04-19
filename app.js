@@ -131,15 +131,18 @@ const PADDLE_KEYS = {
 
 const input$ = Rx.Observable
     .merge(
-        Rx.Observable.fromEvent(document, 'keydown'),
-        Rx.Observable.fromEvent(document, 'keyup')
+        Rx.Observable.fromEvent(document, 'keydown', event => {
+            switch (event.keyCode) {
+                case PADDLE_KEYS.left:
+                    return -1;
+                case PADDLE_KEYS.right:
+                    return 1;
+                default:
+                    return 0;
+            }
+        }),
+        Rx.Observable.fromEvent(document, 'keyup', event => 0)
     )
-    .filter(event => event.keyCode === PADDLE_KEYS.left || event.keyCode === PADDLE_KEYS.right)
-    .scan((direction, event) => {
-        if (event.type === 'keyup') return 0;
-        if (event.keyCode === PADDLE_KEYS.left) return -1;
-        if (event.keyCode === PADDLE_KEYS.right) return 1;
-    }, 0)
     .distinctUntilChanged();
 
 const paddle$ = ticker$
