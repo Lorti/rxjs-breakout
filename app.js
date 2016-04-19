@@ -88,7 +88,7 @@ function drawBricks(bricks) {
 
 const audio = new (window.AudioContext || window.webkitAudioContext)();
 const beeper = new Rx.Subject();
-const beep$ = beeper.sample(100).subscribe((key) => {
+beeper.sample(100).subscribe((key) => {
 
     let oscillator = audio.createOscillator();
     oscillator.connect(audio.destination);
@@ -262,21 +262,8 @@ drawTitle();
 drawControls();
 drawAuthor();
 
-function over([ticker, paddle, objects]) {
-    if (objects.ball.position.y > canvas.height - BALL_RADIUS) {
-        beeper.onNext(28);
-        drawGameOver('GAME OVER');
-        return true;
-    }
-    if (!objects.bricks.length) {
-        beeper.onNext(52);
-        drawGameOver('CONGRATULATIONS');
-        return true;
-    }
-    return false;
-}
-
 function update([ticker, paddle, objects]) {
+
     context.clearRect(0, 0, canvas.width, canvas.height);
 
     drawPaddle(paddle);
@@ -284,15 +271,25 @@ function update([ticker, paddle, objects]) {
     drawBricks(objects.bricks);
     drawScore(objects.score);
 
+    if (objects.ball.position.y > canvas.height - BALL_RADIUS) {
+        beeper.onNext(28);
+        drawGameOver('GAME OVER');
+        game.dispose();
+    }
+
+    if (!objects.bricks.length) {
+        beeper.onNext(52);
+        drawGameOver('CONGRATULATIONS');
+        game.dispose();
+    }
+
     if (objects.collisions.paddle) beeper.onNext(40);
     if (objects.collisions.wall || objects.collisions.ceiling) beeper.onNext(45);
     if (objects.collisions.brick) beeper.onNext(47 + Math.floor(objects.ball.position.y % 12));
+
 }
 
-Rx.Observable
+const game = Rx.Observable
     .combineLatest(ticker$, paddle$, objects$)
     .sample(TICKER_INTERVAL)
-    .takeWhile((actors) => {
-        return !over(actors);
-    })
     .subscribe(update);
